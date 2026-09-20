@@ -52,7 +52,7 @@ export default function RoleHome({ role }) {
         })
         .catch(() => setActionError("Unable to load departments."));
     }
-  }, [role, activeTab]);
+  }, [role, activeTab, queueDeptId]);
 
   // Poll department queue for receptionist
   useEffect(() => {
@@ -572,6 +572,7 @@ export default function RoleHome({ role }) {
             )}
           </section>
         )}
+
       </main>
     </div>
   );

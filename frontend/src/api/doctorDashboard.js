@@ -19,3 +19,8 @@ export async function createPrescription(payload) {
   const response = await apiClient.post("/prescriptions", payload);
   return response.data;
 }
+
+export async function createMedicalRecord(payload) {
+  const response = await apiClient.post("/medical-records", payload);
+  return response.data;
+}

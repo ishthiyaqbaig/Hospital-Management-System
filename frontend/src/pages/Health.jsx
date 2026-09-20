@@ -26,6 +26,10 @@ export default function Health() {
   }, []);
 
   const isHealthy = health?.status === "ok" || health?.status === "healthy";
+  const checks = health?.checks || {};
+  const apiCheck = checks.api;
+  const databaseCheck = checks.database;
+  const geminiCheck = checks.gemini;
 
   return (
     <div className="space-y-8">
@@ -45,7 +49,7 @@ export default function Health() {
           className="rounded-lg bg-medical-teal hover:bg-medical-blue disabled:opacity-50 transition text-white px-4 py-2.5 text-xs font-semibold shadow flex items-center gap-1.5"
           type="button"
         >
-          <span>🔄</span> {checking ? "Refreshing..." : "Run Health Diagnosis"}
+          {checking ? "Refreshing..." : "Run Health Diagnosis"}
         </button>
       </div>
 
@@ -59,21 +63,21 @@ export default function Health() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatusCard
           label="Gateway API Status"
-          value={health ? (isHealthy ? "Operational" : "Degraded") : "Connecting..."}
-          tone={health ? (isHealthy ? "success" : "warning") : "pending"}
-          desc="FastAPI backend application gateway."
+          value={apiCheck ? statusLabel(apiCheck.status) : health ? (isHealthy ? "Operational" : "Degraded") : "Connecting..."}
+          tone={toneFor(apiCheck?.status || (isHealthy ? "ok" : "pending"))}
+          desc={apiCheck?.message || "FastAPI backend application gateway."}
         />
         <StatusCard
           label="Primary Datastore"
-          value={health ? (isHealthy ? "Connected" : "Disconnected") : "Connecting..."}
-          tone={health ? (isHealthy ? "success" : "error") : "pending"}
-          desc="MongoDB cloud atlas database cluster."
+          value={databaseCheck ? statusLabel(databaseCheck.status) : "Connecting..."}
+          tone={toneFor(databaseCheck?.status)}
+          desc={databaseCheck?.message || "MongoDB cloud atlas database cluster."}
         />
         <StatusCard
           label="LLM Intelligence Agent"
-          value={health ? "Gemini 3.5 Ready" : "Connecting..."}
-          tone={health ? "success" : "pending"}
-          desc="Google AI developer api endpoint."
+          value={geminiCheck ? statusLabel(geminiCheck.status) : "Connecting..."}
+          tone={toneFor(geminiCheck?.status)}
+          desc={geminiCheck?.message || "Google AI developer api endpoint."}
         />
       </div>
 
@@ -109,34 +113,70 @@ export default function Health() {
                   </span>
                 </td>
               </tr>
-              <tr>
-                <td className="px-6 py-4 font-semibold">MongoDB Client State</td>
-                <td className="px-6 py-4 text-xs font-mono">cluster0.mongodb.net (Port 27017)</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    health ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-600"
-                  }`}>
-                    {health ? "Online" : "Unknown"}
-                  </span>
-                </td>
-              </tr>
-              <tr>
-                <td className="px-6 py-4 font-semibold">Gemini API Target</td>
-                <td className="px-6 py-4 text-xs font-mono">gemini-3.5-flash (v1beta)</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                    health ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-slate-50 border-slate-200 text-slate-600"
-                  }`}>
-                    {health ? "Online" : "Unknown"}
-                  </span>
-                </td>
-              </tr>
+              <DiagnosticRow label="API Runtime" check={apiCheck} fallback="Waiting for backend response." />
+              <DiagnosticRow label="MongoDB Client State" check={databaseCheck} fallback="Waiting for database diagnosis." />
+              <DiagnosticRow label="Gemini API Target" check={geminiCheck} fallback="Waiting for Gemini diagnosis." />
             </tbody>
           </table>
         </div>
       </div>
     </div>
   );
+}
+
+function DiagnosticRow({ label, check, fallback }) {
+  return (
+    <tr>
+      <td className="px-6 py-4 font-semibold">{label}</td>
+      <td className="px-6 py-4 text-xs">{check?.message || fallback}</td>
+      <td className="px-6 py-4">
+        <StatusPill status={check?.status} />
+      </td>
+    </tr>
+  );
+}
+
+function StatusPill({ status }) {
+  const tone = toneFor(status);
+  const style =
+    tone === "success"
+      ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+      : tone === "error"
+        ? "bg-rose-50 border-rose-200 text-rose-700"
+        : tone === "warning"
+          ? "bg-amber-50 border-amber-200 text-amber-700"
+          : "bg-slate-50 border-slate-200 text-slate-600";
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${style}`}>
+      {statusLabel(status)}
+    </span>
+  );
+}
+
+function statusLabel(status) {
+  if (status === "ok") {
+    return "Online";
+  }
+  if (status === "error") {
+    return "Error";
+  }
+  if (status === "degraded") {
+    return "Degraded";
+  }
+  return "Unknown";
+}
+
+function toneFor(status) {
+  if (status === "ok") {
+    return "success";
+  }
+  if (status === "error") {
+    return "error";
+  }
+  if (status === "degraded") {
+    return "warning";
+  }
+  return "pending";
 }
 
 function StatusCard({ label, value, tone, desc }) {

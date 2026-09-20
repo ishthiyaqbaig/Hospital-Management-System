@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import {
+  createMedicalRecord,
   createPrescription,
   getDoctorToday,
   getPatientRecords,
@@ -9,6 +10,7 @@ import {
 import { updateAppointment } from "../api/appointments";
 
 const emptyMedication = { name: "", dosage: "", frequency: "", duration: "" };
+const emptyClinicalRecord = { diagnosis: "", symptoms: "", notes: "" };
 
 export default function DoctorDashboard() {
   const [doctorId, setDoctorId] = useState("");
@@ -16,6 +18,7 @@ export default function DoctorDashboard() {
   const [selected, setSelected] = useState(null);
   const [history, setHistory] = useState({ patient: null, records: [] });
   const [summary, setSummary] = useState(null);
+  const [clinicalRecord, setClinicalRecord] = useState(emptyClinicalRecord);
   const [medication, setMedication] = useState(emptyMedication);
   const [instructions, setInstructions] = useState("");
   const [notice, setNotice] = useState("");
@@ -68,6 +71,42 @@ export default function DoctorDashboard() {
       ...current,
       [event.target.name]: event.target.value,
     }));
+  };
+
+  const handleClinicalRecordChange = (event) => {
+    setClinicalRecord((current) => ({
+      ...current,
+      [event.target.name]: event.target.value,
+    }));
+  };
+
+  const handleClinicalRecord = async (event) => {
+    event.preventDefault();
+    if (!selected) {
+      return;
+    }
+    setError("");
+    setNotice("");
+    try {
+      const symptoms = clinicalRecord.symptoms
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+      await createMedicalRecord({
+        patient_id: selected.patient_id,
+        doctor_id: doctorId,
+        appointment_id: selected.id,
+        diagnosis: clinicalRecord.diagnosis,
+        symptoms,
+        notes: clinicalRecord.notes || undefined,
+      });
+      setClinicalRecord(emptyClinicalRecord);
+      setSummary(null);
+      setHistory(await getPatientRecords(selected.patient_id));
+      setNotice("Medical history record saved.");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Unable to save medical history record.");
+    }
   };
 
   const handlePrescription = async (event) => {
@@ -190,6 +229,7 @@ export default function DoctorDashboard() {
                 </button>
               ) : null}
             </div>
+            {notice ? <StatusMessage text={notice} tone="success" /> : null}
 
             <div className="mt-5 flex items-center justify-between gap-3">
               <h4 className="font-semibold text-medical-navy">History</h4>
@@ -205,6 +245,38 @@ export default function DoctorDashboard() {
 
             {summary ? <SummaryPanel summary={summary} /> : null}
             <RecordList records={history.records} />
+
+            <form className="mt-6 border-t border-cyan-100 pt-5" onSubmit={handleClinicalRecord}>
+              <h4 className="font-semibold text-medical-navy">Add clinical history</h4>
+              <div className="mt-3 grid gap-3">
+                <FormInput
+                  label="Diagnosis"
+                  name="diagnosis"
+                  onChange={handleClinicalRecordChange}
+                  value={clinicalRecord.diagnosis}
+                />
+                <FormInput
+                  label="Symptoms"
+                  name="symptoms"
+                  onChange={handleClinicalRecordChange}
+                  placeholder="Comma separated"
+                  required={false}
+                  value={clinicalRecord.symptoms}
+                />
+                <label className="text-sm font-medium text-slate-700">
+                  Notes
+                  <textarea
+                    className="mt-2 min-h-20 w-full rounded border border-cyan-100 px-3 py-2 text-sm outline-none focus:border-medical-teal focus:ring-2 focus:ring-medical-mint"
+                    name="notes"
+                    onChange={handleClinicalRecordChange}
+                    value={clinicalRecord.notes}
+                  />
+                </label>
+              </div>
+              <button className="mt-4 w-full rounded border border-medical-teal px-4 py-3 text-sm font-semibold text-medical-teal hover:bg-medical-teal hover:text-white" type="submit">
+                Save history record
+              </button>
+            </form>
 
             <form className="mt-6 border-t border-cyan-100 pt-5" onSubmit={handlePrescription}>
               <h4 className="font-semibold text-medical-navy">Write prescription</h4>
@@ -222,7 +294,6 @@ export default function DoctorDashboard() {
                   />
                 </label>
               </div>
-              {notice ? <StatusMessage text={notice} tone="success" /> : null}
               <button className="mt-4 w-full rounded bg-medical-teal px-4 py-3 text-sm font-semibold text-white hover:bg-medical-blue" type="submit">
                 Save prescription
               </button>

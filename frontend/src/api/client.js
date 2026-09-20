@@ -4,7 +4,7 @@ import { TOKEN_KEY } from "../utils/authStorage";
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000",
-  timeout: 10000,
+  timeout: 45000,
 });
 
 apiClient.interceptors.response.use(

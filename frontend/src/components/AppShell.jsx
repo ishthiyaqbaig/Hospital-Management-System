@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import FloatingChatWidget from "./FloatingChatWidget";
 import { getRoleRedirect, roleLabels } from "../utils/roles";
 import { listNotifications, updateNotification } from "../api/notifications";
 
@@ -41,7 +42,9 @@ export default function AppShell() {
         .then((data) => {
           setNotifications(data.items || []);
         })
-        .catch(() => {});
+        .catch(() => {
+          // Notifications are non-blocking; keep the shell usable if polling fails.
+        });
     };
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 10000);
@@ -67,7 +70,9 @@ export default function AppShell() {
       setNotifications((current) =>
         current.map((n) => (n.id === id ? { ...n, is_read: true } : n))
       );
-    } catch {}
+    } catch {
+      // Ignore stale notification updates.
+    }
   };
 
   const handleMarkAllAsRead = async () => {
@@ -79,7 +84,9 @@ export default function AppShell() {
       setNotifications((current) =>
         current.map((n) => ({ ...n, is_read: true }))
       );
-    } catch {}
+    } catch {
+      // Ignore stale notification updates.
+    }
   };
 
   return (
@@ -208,6 +215,7 @@ export default function AppShell() {
       <main className="mx-auto max-w-6xl px-4 py-8">
         <Outlet />
       </main>
+      {isAuthenticated && user?.role === "patient" ? <FloatingChatWidget /> : null}
     </div>
   );
 }

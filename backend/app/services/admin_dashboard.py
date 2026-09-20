@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import HTTPException, status
-
 from app.services.ai_service import AIServiceError, generate_report
 from app.services.database import get_database
 
@@ -48,8 +46,57 @@ async def generate_admin_report() -> dict[str, Any]:
     try:
         result = await generate_report(stats)
     except AIServiceError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+        fallback = _fallback_report(stats, str(exc))
+        return {"report_id": fallback["report_id"], "report": fallback["report"], "stats": stats}
     return {"report_id": result["report_id"], "report": result["output"], "stats": stats}
+
+
+def _fallback_report(stats: dict[str, Any], error: str) -> dict[str, Any]:
+    totals = stats.get("totals", {})
+    busy_departments = stats.get("department_load", [])[:3]
+    slow_departments = stats.get("average_wait_time", [])[:3]
+    highlights = [
+        f"{int(totals.get('patients', 0))} total patients are registered.",
+        f"{int(totals.get('appointments_today', 0))} appointments are scheduled today.",
+        f"Paid revenue for the current 30-day window is {float(totals.get('paid_revenue', 0)):.2f}.",
+    ]
+    if busy_departments:
+        highlights.append(
+            "Highest department load: "
+            + ", ".join(f"{item.get('label', 'Department')} ({item.get('appointments', 0)})" for item in busy_departments)
+        )
+
+    risks = []
+    average_wait = float(totals.get("average_wait_minutes", 0) or 0)
+    if average_wait >= 30:
+        risks.append(f"Average wait time is elevated at {average_wait} minutes.")
+    if slow_departments:
+        risks.append(
+            "Departments needing wait-time review: "
+            + ", ".join(
+                f"{item.get('label', 'Department')} ({item.get('avg_wait_minutes', 0)} min)"
+                for item in slow_departments
+            )
+        )
+    if not risks:
+        risks.append("No major operational risk is visible in the current analytics snapshot.")
+
+    return {
+        "report_id": f"local-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "report": {
+            "period": "Current analytics snapshot",
+            "summary": "Generated from live hospital analytics because the Gemini report service was unavailable.",
+            "highlights": highlights,
+            "risks": risks,
+            "recommended_actions": [
+                "Review departments with the highest load before peak hours.",
+                "Follow up on appointments with long queue positions.",
+                "Retry the AI report after confirming the Gemini API key and network access.",
+            ],
+            "source": "local_fallback",
+            "ai_error": error,
+        },
+    }
 
 
 async def _aggregate(collection: str, pipeline: list[dict[str, Any]]) -> list[dict[str, Any]]:
